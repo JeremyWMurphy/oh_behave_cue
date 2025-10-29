@@ -69,8 +69,7 @@ teensy_trigger =    '<S,4>';
 teensy_lick_look = '<S,9>';
 
 % connect to teensy
-% s = serialport(serial_port,115200);
-s = [];
+s = serialport(serial_port,115200);
 pause(1);
 
 %% package parameters to send to gui figure

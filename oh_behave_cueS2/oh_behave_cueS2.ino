@@ -56,6 +56,7 @@ const uint HIT = 1;
 const uint MISS = 2;
 const uint CW = 3;
 const uint FA = 4;
+const uint LICK = 5;
 
 // waveform parameters to be set over serial for each of the 4 DAC channels
 volatile uint waveType[4] = { 1, 1, 1, 1 };   // wave types: 0 = whale, 1 = square
@@ -378,8 +379,9 @@ void justReward() {
 void monitorForLick() {
 
   if (lickVal == 1) {
-    trialOutcome = 5;
+    trialOutcome = LICK;
   }
+  
 }
 
 void pollData() {
