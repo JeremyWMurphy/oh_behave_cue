@@ -4,7 +4,7 @@
 
 const uint Fs = 2000;  // sampling rate
 
-const bool waitForNextFrame = true;
+const bool waitForNextFrame = false;
 
 // time lengths
 const uint trigLen = Fs / 2;    // trigger lenght in seconds
@@ -30,10 +30,7 @@ volatile int lickVal = 0;
 // state stuff
 volatile uint State = 0;
 
-volatile bool stimStart = true;
 volatile bool stimEnd = false;
-volatile uint32_t stimT = 0;
-
 volatile bool respStart = true;
 volatile bool respEnd = false;
 volatile bool hasResponded = false;
@@ -46,10 +43,6 @@ volatile bool waitForDisp = false;
 volatile bool trigStart = true;
 volatile bool trigEnd = false;
 volatile uint32_t trigT = 0;
-
-volatile bool giveReward = false;
-volatile bool pauseRewardStart = false;
-volatile uint32_t pauseRewardT = 0;
 
 volatile uint trialOutcome = 0;
 const uint HIT = 1;
@@ -138,13 +131,12 @@ void setup() {
 void ohBehave() {
 
   if (State == 0) {  // do nothing state
-    variableReset();
+    trialOutcome = 0;
 
-  } else if (State == 1) {  // reset
+  } else if (State == 1) {  // reset main
     // this should only be called for one loop of ohBehave before reverting to state 0
     loopCount = 0;
     frameCount = 0;
-    variableReset();
 
   } else if (State == 2) {  // GO
     goNoGo();
@@ -164,7 +156,7 @@ void ohBehave() {
   } else if (State == 7) {  // trigger a typical reward
     justReward();
 
-  else if (State == 8) {  //
+  } else if (State == 8) {  //
     monitorForLick();
   
   } else if (State == 9) {  //
@@ -183,22 +175,12 @@ void ohBehave() {
 void goNoGo() {
 
   if (waitForNextFrame && frameWaitStart) {  // if we're waiting for the next frame to start
-        curFrame = frameCount;
-        frameWaitStart = false;
-      } else if (frameCount > curFrame) {
-        stimStart = true;  // start stim
-        respStart = true;  // start response
-      }
+    curFrame = frameCount;
+    frameWaitStart = false;
+  } else if (!waitForNextFrame || frameCount > curFrame) {
     
-  } else {
-
-    if (stimStart) {
-      stimT = loopCount;
-      stimStart = false;
-    }
-
     waveWrite();  // present stim
-
+    
     if (respStart) {
       respT = loopCount;
       respStart = false;
@@ -208,7 +190,6 @@ void goNoGo() {
     if (loopCount - respT > respLen) {
       respEnd = true;
     } else if (!hasResponded) {
-
       if ((State == 2) && (lickVal == HIGH)) {  // check for licks, if any, then HIT or FA, mark it, don't keep checking
         trialOutcome = HIT;
         hasResponded = true;
@@ -235,9 +216,24 @@ void goNoGo() {
         }
       }
 
-      if (loopCount - dispT > valveLen) {  // end of reward dispens, reset things
-        variableReset();
+      if (loopCount - dispT > valveLen) {  // end of reward dispens, reset things          
+        
+        digitalWrite(valveChan1, LOW);
 
+        for (int i = 0; i < 4; i++) {
+          stimOn[i] = true;
+          inBase[i] = true;
+        }
+
+        stimEnd = false;
+        respEnd = false;
+        hasResponded = false;
+        respStart = true;
+        dispStart = true;
+        frameWaitStart = true;
+        trialOutcome = 0;
+        State = 0; 
+        
       } else if (trialOutcome == HIT) {
         digitalWrite(valveChan1, HIGH);
 
@@ -245,7 +241,7 @@ void goNoGo() {
         // miss, cw, fa .. can put other things here, like error feedback
       }
     }
-  }
+  } 
 }
 
 void waveWrite() {
@@ -350,13 +346,19 @@ void fireTrig() {
   }
 
   if (loopCount - trigT > trigLen) {
-    variableReset();
+    State = 0; 
+    trigStart = true;
+    digitalWrite(trigChan1, LOW);
+    digitalWrite(trigChan2, LOW);
+    digitalWrite(trigChan3, LOW);
+    digitalWrite(trigChan4, LOW);
 
   } else {
     digitalWrite(trigChan1, HIGH);
     digitalWrite(trigChan2, HIGH);
     digitalWrite(trigChan3, HIGH);
     digitalWrite(trigChan4, HIGH);
+
   }
 }
 
@@ -369,7 +371,9 @@ void justReward() {
   }
 
   if (loopCount - dispT > valveLen) {  // end of reward dispense, reset things
-     variableReset();
+    State = 0; 
+    dispStart = true;
+    digitalWrite(valveChan1, LOW);
 
   } else {
     digitalWrite(valveChan1, HIGH);
@@ -515,33 +519,6 @@ void parseData() {  // split the data into its parts
 
     newData = false;
   }
-}
-
-void variableReset() {
-
-  State = 0; 
-  trialOutcome = 0; 
-
-  stimEnd = false;
-  respEnd = false;
-  respStart = true;
-  dispStart = true;
-  stimStart = true;
-  pauseRewardStart = true;
-  giveReward = false;
-  trigStart = true;
-
-  digitalWrite(valveChan1, LOW);
-  for (int i = 0; i < 4; i++) {
-    stimOn[i] = true;
-    inBase[i] = true;
-  }
-
-  digitalWrite(trigChan1, LOW);
-  digitalWrite(trigChan2, LOW);
-  digitalWrite(trigChan3, LOW);
-  digitalWrite(trigChan4, LOW);
-
 }
 
 int linspace(float const n, float const d1, float const d2, int const i) {

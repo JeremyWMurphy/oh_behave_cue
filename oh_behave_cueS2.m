@@ -13,6 +13,7 @@ prcnt_go = 0.9; % percentage of trials that are go trials
 sig_amps = [0.1 0.15 0.2 0.5 0.7 1]; % amplitudes of stimuli, Volts
 prcnt_amps = [0.16 0.16 0.16 0.16 0.16 0.16]; % proportion of different amplitudes to present - needs to add to 1
 lick_pause_time = 1000; % pause in ms for lick-reward pairing between lick and reward, this is usually fixed during detection, but may be used for other shaping runs
+time_out_len = 3;
 
 % initial teensy waveform stimulus parameters
 chan = '0';
@@ -24,7 +25,7 @@ pulse_reps = '3';
 pulse_base = '0'; % ms
 
 % device parameters
-serial_port = 'COM6';
+serial_port = 'COM3';
 up_every = 5000; % number of bytes to read in at a time
 n_sec_disp = 20; % number of seconds to display on the graph
 
@@ -66,7 +67,7 @@ teensy_reset =      '<S,1>';
 teensy_go_trial =   '<S,2>';
 teensy_nogo_trial = '<S,3>';
 teensy_trigger =    '<S,4>';
-teensy_lick_look = '<S,9>';
+teensy_lick_look = '<S,8>';
 
 % connect to teensy
 s = serialport(serial_port,115200);
@@ -199,8 +200,7 @@ while f.UserData.state ~= 3
             if lick_tf % then licked so give error feedback
                 sound(error_sound,sound_fs);
                 write_serial(s,teensy_idle);
-                pause(2)
-
+                pause(time_out_len)
             else
 
                 % run appropriate trial type

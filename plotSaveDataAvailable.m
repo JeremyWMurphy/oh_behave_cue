@@ -26,10 +26,12 @@ if ~isempty(data)
     ax.Children(2).set('Ydata',[ax.Children(2).YData(size(data,1)+1:end) 5 + [diff(data(:,2)') 0]]); % frames
     ax.Children(1).set('Ydata',[ax.Children(1).YData(size(data,1)+1:end) 7 + data(:,7)']); % licks
 
-    ot = find(data(:,4) ~= 0,1,'first'); 
+    ot = find(data(:,4) > 0,1,'first'); 
     if ~isempty(ot)
         f.UserData.trialOutcome = data(ot,4);
-        f.UserData.Done = 1;
+        if data(:,4) < 5
+            f.UserData.Done = 1;
+        end
     else
         f.UserData.trialOutcome = data(ot,4);
         f.UserData.Done = 0;
