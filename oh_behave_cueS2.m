@@ -7,13 +7,19 @@ teensy_fs = 2000; % teensy sample rate, Hz
 % experiment parameters
 baseln = 5; % length of pause at begining of each run, sec
 itis = [7 10]; % inter-trial interval, sec
-cue_s2 = [3 8];
+cue_s2 = [3 10];
+isi_dist = 0.5*randn(1000,1)+mean(cue_s2); % gaussian isi distribution rn
 n_trials = 300; % number of total trials to run
 prcnt_go = 0.9; % percentage of trials that are go trials
 sig_amps = [0.1 0.15 0.2 0.5 0.7 1]; % amplitudes of stimuli, Volts
 prcnt_amps = [0.16 0.16 0.16 0.16 0.16 0.16]; % proportion of different amplitudes to present - needs to add to 1
 lick_pause_time = 1000; % pause in ms for lick-reward pairing between lick and reward, this is usually fixed during detection, but may be used for other shaping runs
 time_out_len = 3;
+
+% training parameters
+do_lick_contigent = 1;
+do_error_sound = 1;
+do_error_timeout = 1;
 
 % initial teensy waveform stimulus parameters
 chan = '0';
@@ -184,9 +190,9 @@ while f.UserData.state ~= 3
 
             % begin monitoring for licks
             write_serial(s,teensy_lick_look);
-           
+
             sec_track = 0;
-            intrvl = cue_s2(1) + (cue_s2(2) - cue_s2(1)) * rand;
+            intrvl = isi_dist(randi(numel(isi_dist),1));
             lick_tf = 0;
             while sec_track < intrvl
                 if f.UserData.trialOutcome == 5
@@ -197,10 +203,11 @@ while f.UserData.state ~= 3
                 pause(0.1)
             end
 
-            if lick_tf % then licked so give error feedback
-                sound(error_sound,sound_fs);
-                write_serial(s,teensy_idle);
-                pause(time_out_len)
+            if lick_tf % then licked so give error feedback         
+                    sound(error_sound,sound_fs);                
+                    write_serial(s,teensy_idle);
+                    pause(time_out_len)
+             
             else
 
                 % run appropriate trial type
