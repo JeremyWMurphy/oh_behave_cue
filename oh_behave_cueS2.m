@@ -203,11 +203,10 @@ while f.UserData.state ~= 3
                 pause(0.1)
             end
 
-            if lick_tf % then licked so give error feedback         
-                    sound(error_sound,sound_fs);                
-                    write_serial(s,teensy_idle);
-                    pause(time_out_len)
-             
+            if lick_tf % then licked so give error feedback
+                sound(error_sound,sound_fs);
+                write_serial(s,teensy_idle);
+                pause(time_out_len)
             else
 
                 % run appropriate trial type
