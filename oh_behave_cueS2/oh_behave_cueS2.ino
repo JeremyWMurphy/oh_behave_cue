@@ -4,12 +4,14 @@
 
 const uint Fs = 2000;  // sampling rate
 
-const bool waitForNextFrame = false;
+const bool waitForNextFrame = true;
 
 // time lengths
 const uint trigLen = Fs / 2;    // trigger lenght in seconds
 const uint respLen = Fs * 2;    // how long from stim start is a response considered valid,
 const uint valveLen = Fs * 1;   // how long to open reward valve in samples
+const uint frameRate = Fs*0.1;
+const uint frameTriggerLen = Fs * 0.001; 
 
 // channels
 // ins
@@ -84,7 +86,10 @@ volatile char msgCode;
 volatile uint32_t loopCount = 0;
 volatile uint32_t frameCount = 0;
 volatile uint32_t curFrame = 0;       // for waiting for next frame to begin trial
+volatile uint32_t lastFrame = 0; // for triggering frames of a camera
 volatile bool frameWaitStart = true;  // for waiting for next frame to begin trial
+
+volatile bool triggerCameraFrames = false;
 
 // objs
 Adafruit_MCP4728 mcp;
@@ -160,10 +165,21 @@ void ohBehave() {
     monitorForLick();
   
   } else if (State == 9) {  //
-    waveWrite();
+    justStim();
   
+  } else if (State == 10) {  //
+    triggerCameraFrames = true;
+    State = 0;
+  
+  } else if (State == 11) {  //
+    triggerCameraFrames = false;
+    State = 0;
   }
 
+  if (triggerCameraFrames){
+    triggerCamera();
+  }
+  
   dataReport();
   pollData();
   recvSerial();
@@ -243,6 +259,32 @@ void goNoGo() {
     }
   } 
 }
+
+void justStim() {
+
+  if (waitForNextFrame && frameWaitStart) {  // if we're waiting for the next frame to start
+    curFrame = frameCount;
+    frameWaitStart = false;
+  } else if (!waitForNextFrame || frameCount > curFrame) {
+    
+    waveWrite();  // present stim
+    
+    if (stimEnd) {  // if stim and resp window are both over, evaluate outcome
+
+        for (int i = 0; i < 4; i++) {
+          stimOn[i] = true;
+          inBase[i] = true;
+        }
+
+        stimEnd = false;
+        frameWaitStart = true;
+        trialOutcome = 0;
+        State = 0; 
+      
+    }
+  }
+} 
+
 
 void waveWrite() {
 
@@ -360,6 +402,26 @@ void fireTrig() {
     digitalWrite(trigChan4, HIGH);
 
   }
+}
+
+void triggerCamera() {
+
+    if (loopCount - lastFrame >= frameRate){
+      lastFrame = loopCount;
+    
+      if (trigStart) {
+        trigT = loopCount;
+        trigStart = false;
+      }
+
+      if (loopCount - trigT > frameTriggerLen) {
+        trigStart = true;
+        digitalWrite(trigChan4, LOW);    
+      } else {
+        digitalWrite(trigChan4, HIGH);
+      }
+    } 
+  
 }
 
 void justReward() {
