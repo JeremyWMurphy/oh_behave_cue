@@ -165,7 +165,7 @@ void ohBehave() {
     monitorForLick();
   
   } else if (State == 9) {  //
-    waveWrite();
+    justStim();
   
   } else if (State == 10) {  //
     triggerCameraFrames = true;
@@ -259,6 +259,32 @@ void goNoGo() {
     }
   } 
 }
+
+void justStim() {
+
+  if (waitForNextFrame && frameWaitStart) {  // if we're waiting for the next frame to start
+    curFrame = frameCount;
+    frameWaitStart = false;
+  } else if (!waitForNextFrame || frameCount > curFrame) {
+    
+    waveWrite();  // present stim
+    
+    if (stimEnd) {  // if stim and resp window are both over, evaluate outcome
+
+        for (int i = 0; i < 4; i++) {
+          stimOn[i] = true;
+          inBase[i] = true;
+        }
+
+        stimEnd = false;
+        frameWaitStart = true;
+        trialOutcome = 0;
+        State = 0; 
+      
+    }
+  }
+} 
+
 
 void waveWrite() {
 

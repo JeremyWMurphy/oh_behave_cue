@@ -30,7 +30,7 @@ pulse_reps = '3';
 pulse_base = '0'; % ms
 
 % device parameters
-serial_port = 'COM3';
+serial_port = 'COM6';
 up_every = 5000; % number of bytes to read in at a time
 n_sec_disp = 20; % number of seconds to display on the graph
 
@@ -139,6 +139,8 @@ while f.UserData.state ~= 3
 
         % send triggers
         write_serial(s,teensy_trigger);
+        pause(0.1)
+        write_serial(s,'<S,10>');
         pause(0.1)
 
         fprintf(data_fid_notes,['\nRun Began at ' char(datetime('now','Format','HH:mm:ss'))]);
@@ -286,6 +288,51 @@ while f.UserData.state ~= 3
                     present = 0;
                 end
 
+<<<<<<< HEAD
+=======
+                % begin ITI
+                iti = itis(1) + (itis(2) - itis(1)) * rand;
+                pause(iti)
+
+                % Change all outcome text back to gray
+                hit_txt.FontColor = [0.5 0.5 0.5];
+                miss_txt.FontColor = [0.5 0.5 0.5];
+                cw_txt.FontColor = [0.5 0.5 0.5];
+                fa_txt.FontColor = [0.5 0.5 0.5];
+
+                axb.Children.YData = n_resp_types;
+                axb.Children.Labels = n_resp_types;
+                axb.XLim = [0 max(n_resp_types(:))+0.1];
+
+                axc.Children.YData = p_hit(1,:)./(p_hit(1,:)+p_hit(2,:));
+
+            end
+
+            % check for run ending events
+            if f.UserData.state == 2  % end the run
+                write_serial(s,'<S,11>');
+                ax.Title.String = 'Waiting to start';
+                fprintf('\nAbort...')
+                present = 0;
+                % send triggers
+                write_serial(s,teensy_trigger);
+                pause(0.1)
+                configureCallback(s,'off');
+                kill_run(s,data_fid_stream,data_fid_notes,notes);
+
+            elseif trl_cntr > n_trials % end of run
+                write_serial(s,'<S,11>');
+                ax.Title.String = 'Task Complete';
+                pause(3)
+                ax.Title.String = 'Waiting to start';
+                fprintf('\nEnd of run...')
+                present = 0;
+                configureCallback(s,'off');
+                f.UserData.state = 2;
+                kill_run(s,data_fid_stream,data_fid_notes,notes);
+            elseif f.UserData.state == 3 % quit
+                present = 0;
+>>>>>>> f3831f5a9d0f97dba3cc07e785976ef5d44d0305
             end
 
         end
