@@ -105,16 +105,16 @@ void setup() {
   Wire.begin();
 
   // Try to initialize DAC
-  if (!mcp.begin(0x60)) {  // Be careful, this could be 0x60 or 0x64
+  while (!mcp.begin(0x60)) {  // Be careful, this could be 0x60 or 0x64
     Serial.println("Failed to find MCP4728 chip");
-  } else {
-    Serial.println("Found MCP4728 chip");
-    mcp.setChannelValue(MCP4728_CHANNEL_A, 0);
-    mcp.setChannelValue(MCP4728_CHANNEL_B, 0);
-    mcp.setChannelValue(MCP4728_CHANNEL_C, 0);
-    mcp.setChannelValue(MCP4728_CHANNEL_D, 0);
   }
-
+  
+  Serial.println("Found MCP4728 chip");
+  mcp.setChannelValue(MCP4728_CHANNEL_A, 0);
+  mcp.setChannelValue(MCP4728_CHANNEL_B, 0);
+  mcp.setChannelValue(MCP4728_CHANNEL_C, 0);
+  mcp.setChannelValue(MCP4728_CHANNEL_D, 0);
+  
   Wire.setClock(1000000);  // holy fucking shit, this must be set after mcp.begin or else it doesn't work
 
   // setup io

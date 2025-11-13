@@ -13,7 +13,6 @@ n_trials = 300; % number of total trials to run
 prcnt_go = 0.9; % percentage of trials that are go trials
 sig_amps = [0.1 0.15 0.2 0.5 0.7 1]; % amplitudes of stimuli, Volts
 prcnt_amps = [0.16 0.16 0.16 0.16 0.16 0.16]; % proportion of different amplitudes to present - needs to add to 1
-lick_pause_time = 1000; % pause in ms for lick-reward pairing between lick and reward, this is usually fixed during detection, but may be used for other shaping runs
 time_out_len = 3;
 
 % training parameters
@@ -68,24 +67,19 @@ trls = trls(randperm(size(trls,1)));
 %% serial coms w/ teensy
 
 % teensy codes
-teensy_idle = '<S,0>';
+teensy_idle =       '<S,0>';
 teensy_reset =      '<S,1>';
 teensy_go_trial =   '<S,2>';
 teensy_nogo_trial = '<S,3>';
 teensy_trigger =    '<S,4>';
-teensy_lick_look = '<S,8>';
+teensy_lick_look =  '<S,8>';
 
 % connect to teensy
 s = serialport(serial_port,115200);
 pause(1);
 
-%% package parameters to send to gui figure
-params.trial = struct('baseln',baseln,'itis',itis,'n_trials',n_trials,'prcnt_go',prcnt_go,'sig_amps',sig_amps,'lick_pause_time',lick_pause_time);
-params.wave = struct('chan',str2num(chan),'pulse_type',str2num(pulse_type),'pulse_len',str2num(pulse_len),'pulse_amp',str2num(pulse_amp), ...
-    'pulse_intrvl',str2num(pulse_intrvl),'pulse_reps',str2num(pulse_reps),'pulse_base',str2num(pulse_base));
-
 %% make main gui figure
-f = make_ui_figure(teensy_fs,n_sec_disp,s,params);
+f = make_ui_figure(teensy_fs,n_sec_disp,s,sig_amps);
 
 % get fig objs
 tbs = get(f,'Children');
@@ -126,6 +120,8 @@ while f.UserData.state ~= 3
 
     elseif f.UserData.state == 1 % beginning of a run
 
+        run_type = f.UserData.run_type; % Lick, Pair, Detect
+
         trl_cntr = 0;
         present = 1;
 
@@ -162,131 +158,134 @@ while f.UserData.state ~= 3
             trl_cntr = trl_cntr + 1;
 
             %% Detection Task
+            if run_type == 1
 
-            if trl_cntr == 1
-                fprintf(data_fid_notes,'\nDetection Task');
-                pause(baseln)
-            end
-
-            trial_type = trls(trl_cntr);
-            if trial_type > 0
-                is_go = true;
-                cur_amp = sig_amps_12bit(trial_type);
-                msg_out = ['<W,' chan ',' pulse_type ',' pulse_len ',' num2str(cur_amp) ',' pulse_intrvl ',' pulse_reps ',' pulse_base '>'];
-                ax.Title.String = ['Trial ' num2str(trl_cntr) ', Go, Amp = ' num2str(cur_amp)];
-                fprintf(data_fid_notes,['\n Trial ' num2str(trl_cntr) ' ' char(datetime('now','Format','HH:mm:ss')) ', Go Trial, Amp = ' num2str(cur_amp)]);
-            else
-                is_go = false;
-                msg_out = ['<W,' chan ',' pulse_type ',' pulse_len ',0,' pulse_intrvl ',' pulse_reps ',' pulse_base '>'];
-                ax.Title.String = ['Trial ' num2str(trl_cntr) ', NoGo, Amp = 0'];
-                fprintf(data_fid_notes,['\n Trial ' num2str(trl_cntr) ' ' char(datetime('now','Format','HH:mm:ss')) ', NoGo Trial, Amp = 0']);
-            end
-
-            % set waveform parameters
-            write_serial(s,msg_out);
-
-            % present cue
-            sound(cue_sound,sound_fs);
-
-            % begin monitoring for licks
-            write_serial(s,teensy_lick_look);
-
-            sec_track = 0;
-            intrvl = isi_dist(randi(numel(isi_dist),1));
-            lick_tf = 0;
-            while sec_track < intrvl
-                if f.UserData.trialOutcome == 5
-                    lick_tf = 1;
-                    break
-                end
-                sec_track = sec_track + 0.1;
-                pause(0.1)
-            end
-
-            if lick_tf % then licked so give error feedback
-                sound(error_sound,sound_fs);
-                write_serial(s,teensy_idle);
-                pause(time_out_len)
-            else
-
-                % run appropriate trial type
-                if is_go
-                    write_serial(s,teensy_go_trial);
-                elseif ~is_go
-                    write_serial(s,teensy_nogo_trial);
+                if trl_cntr == 1
+                    fprintf(data_fid_notes,'\nDetection Task');
+                    pause(baseln)
                 end
 
+                trial_type = trls(trl_cntr);
+                if trial_type > 0
+                    is_go = true;
+                    cur_amp = sig_amps_12bit(trial_type);
+                    msg_out = ['<W,' chan ',' pulse_type ',' pulse_len ',' num2str(cur_amp) ',' pulse_intrvl ',' pulse_reps ',' pulse_base '>'];
+                    ax.Title.String = ['Trial ' num2str(trl_cntr) ', Go, Amp = ' num2str(cur_amp)];
+                    fprintf(data_fid_notes,['\n Trial ' num2str(trl_cntr) ' ' char(datetime('now','Format','HH:mm:ss')) ', Go Trial, Amp = ' num2str(cur_amp)]);
+                else
+                    is_go = false;
+                    msg_out = ['<W,' chan ',' pulse_type ',' pulse_len ',0,' pulse_intrvl ',' pulse_reps ',' pulse_base '>'];
+                    ax.Title.String = ['Trial ' num2str(trl_cntr) ', NoGo, Amp = 0'];
+                    fprintf(data_fid_notes,['\n Trial ' num2str(trl_cntr) ' ' char(datetime('now','Format','HH:mm:ss')) ', NoGo Trial, Amp = 0']);
+                end
 
-                %% remaining general trial structure -- the following stuff is common to all run types
-                %% (i.e., wait for trial end, get trial outcome, record outcome, do ITI)
-                while ~trial_is_done
-                    trial_is_done = f.UserData.Done;
-                    % wait for end of trial message from teensy before moving on
-                    % but make sure the serial callback has room to breath:
-                    pause(0.1)
-                    if f.UserData.state == 2 || f.UserData.state == 3 % this allows us to end the run or quit while waiting for trial outcome
+                % set waveform parameters
+                write_serial(s,msg_out);
+
+                % present cue
+                sound(cue_sound,sound_fs);
+
+                % begin monitoring for licks
+                write_serial(s,teensy_lick_look);
+
+                sec_track = 0;
+                intrvl = isi_dist(randi(numel(isi_dist),1));
+                lick_tf = 0;
+                while sec_track < intrvl
+                    if f.UserData.trialOutcome == 5
+                        lick_tf = 1;
                         break
                     end
+                    sec_track = sec_track + 0.1;
+                    pause(0.1)
                 end
 
-                trial_is_done = 0;
+                if lick_tf % then licked so give error feedback
+                    sound(error_sound,sound_fs);
+                    write_serial(s,teensy_idle);
+                    pause(time_out_len)
+                else
 
-                % color GUI outcome text based on this trials outcome
-                if f.UserData.trialOutcome == 1
-                    hit_txt.FontColor = [0 1 1];
-                    n_resp_types(1) = n_resp_types(1)+1;
-                    p_hit(1,trial_type) = p_hit(1,trial_type) + 1;
-                elseif f.UserData.trialOutcome == 2
-                    miss_txt.FontColor = [0 1 1];
-                    n_resp_types(2) = n_resp_types(2)+1;
-                    p_hit(2,trial_type) = p_hit(2,trial_type) + 1;
-                elseif f.UserData.trialOutcome == 3
-                    cw_txt.FontColor = [0 1 1];
-                    n_resp_types(3) = n_resp_types(3)+1;
-                elseif f.UserData.trialOutcome == 4
-                    fa_txt.FontColor = [0 1 1];
-                    n_resp_types(4) = n_resp_types(4)+1;
+                    % run appropriate trial type
+                    if is_go
+                        write_serial(s,teensy_go_trial);
+                    elseif ~is_go
+                        write_serial(s,teensy_nogo_trial);
+                    end
+
+
+                    %% remaining general trial structure -- the following stuff is common to all run types
+                    %% (i.e., wait for trial end, get trial outcome, record outcome, do ITI)
+                    while ~trial_is_done
+                        trial_is_done = f.UserData.Done;
+                        % wait for end of trial message from teensy before moving on
+                        % but make sure the serial callback has room to breath:
+                        pause(0.1)
+                        if f.UserData.state == 2 || f.UserData.state == 3 % this allows us to end the run or quit while waiting for trial outcome
+                            break
+                        end
+                    end
+
+                    trial_is_done = 0;
+
+                    % color GUI outcome text based on this trials outcome
+                    if f.UserData.trialOutcome == 1
+                        hit_txt.FontColor = [0 1 1];
+                        n_resp_types(1) = n_resp_types(1)+1;
+                        p_hit(1,trial_type) = p_hit(1,trial_type) + 1;
+                    elseif f.UserData.trialOutcome == 2
+                        miss_txt.FontColor = [0 1 1];
+                        n_resp_types(2) = n_resp_types(2)+1;
+                        p_hit(2,trial_type) = p_hit(2,trial_type) + 1;
+                    elseif f.UserData.trialOutcome == 3
+                        cw_txt.FontColor = [0 1 1];
+                        n_resp_types(3) = n_resp_types(3)+1;
+                    elseif f.UserData.trialOutcome == 4
+                        fa_txt.FontColor = [0 1 1];
+                        n_resp_types(4) = n_resp_types(4)+1;
+                    end
+
+                    % print the outcome of the trial to file
+                    fprintf(data_fid_notes,[', Outcome = ' num2str(f.UserData.trialOutcome)'] );
+
+                    % begin ITI
+                    iti = itis(1) + (itis(2) - itis(1)) * rand;
+                    pause(iti)
+
+                    % Change all outcome text back to gray
+                    hit_txt.FontColor = [0.5 0.5 0.5];
+                    miss_txt.FontColor = [0.5 0.5 0.5];
+                    cw_txt.FontColor = [0.5 0.5 0.5];
+                    fa_txt.FontColor = [0.5 0.5 0.5];
+
+                    axb.Children.YData = n_resp_types;
+                    axb.Children.Labels = n_resp_types;
+                    axb.XLim = [0 max(n_resp_types(:))+0.1];
+
+                    axc.Children.YData = p_hit(1,:)./(p_hit(1,:)+p_hit(2,:));
+
                 end
 
-                % print the outcome of the trial to file
-                fprintf(data_fid_notes,[', Outcome = ' num2str(f.UserData.trialOutcome)'] );
+                % check for run ending events
+                if f.UserData.state == 2  % end the run
+                    ax.Title.String = 'Waiting to start';
+                    fprintf('\nAbort...')
+                    present = 0;
+                    configureCallback(s,'off');
+                    kill_run(s,data_fid_stream,data_fid_notes,notes);
+                elseif trl_cntr > n_trials % end of run
+                    ax.Title.String = 'Task Complete';
+                    pause(3)
+                    ax.Title.String = 'Waiting to start';
+                    fprintf('\nEnd of run...')
+                    present = 0;
+                    configureCallback(s,'off');
+                    f.UserData.state = 2;
+                    kill_run(s,data_fid_stream,data_fid_notes,notes);
+                elseif f.UserData.state == 3 % quit
+                    present = 0;
+                end
 
-                % begin ITI
-                iti = itis(1) + (itis(2) - itis(1)) * rand;
-                pause(iti)
-
-                % Change all outcome text back to gray
-                hit_txt.FontColor = [0.5 0.5 0.5];
-                miss_txt.FontColor = [0.5 0.5 0.5];
-                cw_txt.FontColor = [0.5 0.5 0.5];
-                fa_txt.FontColor = [0.5 0.5 0.5];
-
-                axb.Children.YData = n_resp_types;
-                axb.Children.Labels = n_resp_types;
-                axb.XLim = [0 max(n_resp_types(:))+0.1];
-
-                axc.Children.YData = p_hit(1,:)./(p_hit(1,:)+p_hit(2,:));
-
-            end
-
-            % check for run ending events
-            if f.UserData.state == 2  % end the run
-                ax.Title.String = 'Waiting to start';
-                fprintf('\nAbort...')
-                present = 0;
-                configureCallback(s,'off');
-                kill_run(s,data_fid_stream,data_fid_notes,notes);
-            elseif trl_cntr > n_trials % end of run
-                ax.Title.String = 'Task Complete';
-                pause(3)
-                ax.Title.String = 'Waiting to start';
-                fprintf('\nEnd of run...')
-                present = 0;
-                configureCallback(s,'off');
-                f.UserData.state = 2;
-                kill_run(s,data_fid_stream,data_fid_notes,notes);
-            elseif f.UserData.state == 3 % quit
-                present = 0;
             end
 
         end
